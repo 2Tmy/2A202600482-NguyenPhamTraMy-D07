@@ -91,7 +91,38 @@ Chạy `ChunkingStrategyComparator().compare()` trên 2-3 tài liệu:
 
 **Code snippet (nếu custom):**
 ```python
-# Paste implementation here
+class AgenticChunker:
+    """
+    Splits text into chunks based on semantic meaning and logical propositions 
+    determined by an LLM, rather than fixed lengths or punctuation.
+    """
+    def __init__(self, llm_fn: Callable[[str], str], max_chunk_size: int = 800) -> None:
+        self.llm_fn = llm_fn
+        self.max_chunk_size = max_chunk_size
+
+    def chunk(self, text: str) -> list[str]:
+            if not text: return []
+            temp_chunker = RecursiveChunker(chunk_size=10000)
+            segments = temp_chunker.chunk(text)
+
+            refined_chunks = []
+            fallback_chunker = FixedSizeChunker(chunk_size=self.max_chunk_size, overlap=50)
+
+            for segment in segments:
+                try:
+                    prompt = f"Insert '|||' to split this text into semantic sections. Do not change text.\n\n{segment}"
+                    response = self.llm_fn(prompt)
+                    initial_chunks = [c.strip() for c in response.split("|||") if c.strip()]
+                    
+                    for c in initial_chunks:
+                        if len(c) > self.max_chunk_size:
+                            refined_chunks.extend(fallback_chunker.chunk(c))
+                        else:
+                            refined_chunks.append(c)
+                except Exception:
+                    refined_chunks.extend(fallback_chunker.chunk(segment))
+                    
+            return refined_chunks
 ```
 
 ### So Sánh: Strategy của tôi vs Baseline
@@ -100,7 +131,8 @@ Chạy `ChunkingStrategyComparator().compare()` trên 2-3 tài liệu:
 |-----------|----------|-------------|------------|-------------------|
 | Luật lao động Việt Nam | FixedSizeChunker (`fixed_size`) | 1074 | 199.87 | Không |
 | Luật lao động Việt Nam | SentenceChunker (`by_sentences`) | 554 | 346.92 | Có |
-| Luật lao động Việt Nam | RecursiveChunker (`recursive`) | 1652 | 115.27 | Có 
+| Luật lao động Việt Nam | RecursiveChunker (`recursive`) | 1652 | 115.27 | Có |
+| Luật lao động Việt Nam | Custom strategy (`agentic`) | 707 | 200 | Có |
 
 ### So Sánh Với Thành Viên Khác
 
@@ -110,13 +142,13 @@ Chạy `ChunkingStrategyComparator().compare()` trên 2-3 tài liệu:
 | Duy Anh | Custom Strategy (Regex Based Chunking) | 8.5 | Bảo toàn ngữ cảnh tốt | Khi điều luật quá dài, đoạn chunk sinh ra sẽ vượt qua giới hạn context window. Hao phí khi embedding. Sự thừa thãi khi truy xuất.  |
 | Lại Gia Khánh | Semantic Chunking | 8 | Giữ nguyên đơn vị nghĩa (câu/điều), cải thiện độ chính xác truy vấn và khả năng trích dẫn nguồn; giảm nhiễu khi trả lời câu hỏi chuyên sâu. | Phụ thuộc vào chất lượng embedding và ngưỡng similarity; cần tinh chỉnh threshold; tốn tài nguyên hơn và có thể tạo chunk kích thước không đồng đều. |
 | Mạc Phương Nga | FixedSizeChunker | 10 | Xử lý đơn giản, nhanh. Kiểm soát được lượng token đưa vào LLM | Phụ thuộc nhiều vào chunk_size và overlap, cần kiểm thử nhiều lần để tìm cặp thông số tối ưu. |
-| Nguyễn Phạm Trà My | AgenticChunker |10| Bảo tồn trọn vẹn bối cảnh và tính logic của văn bản bằng cách phân đoạn dựa trên ranh giới ngữ nghĩa thay vì cắt theo độ dài vật lý cố định. | Chi phí cao và tốc độ xử lý chậm do phụ thuộc hoàn toàn vào việc gọi API từ LLM cho từng đoạn văn bản.|
+| Nguyễn Phạm Trà My | AgenticChunker |8| Linh hoạt trong việc quản lý ngữ cảnh | Chi phí cao và tốc độ xử lý chậm do phụ thuộc hoàn toàn vào việc gọi API từ LLM cho từng đoạn văn bản.|
 | Trương Minh Sơn |Parent–Child |7.8/10|Trả lời câu hỏi, tìm chunks khá chính xác, Retrieval tìm đúng chunk quan trọng (Top-1 thường chứa đáp án).| Test thêm queries, có queries bị lan man không đúng trọng tâm dù tìm đúng đoạn chunk đoạn thông tin cần trả lời, có case bị lost-track information.’Top-K còn nhiều chunk không liên quan → context bị nhiễu |
 | Bùi Trần Gia Bảo| DocumentStructureChunker | 6/10| Giữ nguyên cấu trúc tài liệu (heading, section), rất phù hợp với văn bản markdown pháp lý, giúp truy xuất theo ngữ cảnh rõ ràng. | Phụ thuộc vào chất lượng định dạng markdown; nếu cấu trúc không chuẩn hoặc quá dài, chunk có thể mất cân bằng và ảnh hưởng hiệu quả retrieval. |
 
 
 **Strategy nào tốt nhất cho domain này? Tại sao?**
-> *Viết 2-3 câu:*
+> *FixedSizeChunk vì xử lý đơn giản và còn kiểm soát được lượng token đưa vào LLM. Hơn nữa còn đạt được 10/10 retrieval score
 
 ---
 
@@ -178,23 +210,26 @@ Chạy 5 benchmark queries của nhóm trên implementation cá nhân của bạ
 
 | # | Query | Gold Answer |
 |---|-------|-------------|
-| 1 | | |
-| 2 | | |
-| 3 | | |
-| 4 | | |
-| 5 | | |
+| 1 |Bộ luật Lao động năm 2019 (Luật số 45/2019/QH14) chính thức có hiệu lực thi hành kể từ ngày tháng năm nào?| Ngày 01 tháng 01 năm 2021.|
+| 2 |Theo Bộ luật Lao động 2019, hợp đồng lao động được phân loại thành mấy loại chính? Đó là những loại nào? | Gồm 02 loại chính: Hợp đồng lao động không xác định thời hạn và Hợp đồng lao động xác định thời hạn |
+| 3 |Quy định pháp luật không cho phép áp dụng thời gian thử việc đối với trường hợp người lao động giao kết loại hợp đồng lao động nào? | Không áp dụng thử việc đối với người lao động giao kết hợp đồng lao động có thời hạn dưới 01 tháng.|
+| 4 |Theo quy định, thời gian thử việc tối đa đối với công việc của người quản lý doanh nghiệp (theo quy định của Luật Doanh nghiệp, Luật Quản lý, sử dụng vốn nhà nước đầu tư vào sản xuất, kinh doanh tại doanh nghiệp) là bao nhiêu ngày? |Không quá 180 ngày. |
+| 5 |Trong dịp lễ Quốc khánh 02/9, người lao động được nghỉ làm việc và hưởng nguyên lương tổng cộng bao nhiêu ngày?| 02 ngày |
+| 6 |Lộ trình điều chỉnh tuổi nghỉ hưu đối với người lao động làm việc trong điều kiện lao động bình thường được thực hiện cho đến khi đạt mức độ tuổi nào đối với nam và nữ?|Nam đạt đủ 62 tuổi (vào năm 2028) và Nữ đạt đủ 60 tuổi (vào năm 2035).|
+
 
 ### Kết Quả Của Tôi
 
 | # | Query | Top-1 Retrieved Chunk (tóm tắt) | Score | Relevant? | Agent Answer (tóm tắt) |
 |---|-------|--------------------------------|-------|-----------|------------------------|
-| 1 | | | | | |
-| 2 | | | | | |
-| 3 | | | | | |
-| 4 | | | | | |
-| 5 | | | | | |
+| 1 |Bộ luật Lao động năm 2019 (Luật số 45/2019/QH14) chính thức có hiệu lực thi hành kể từ ngày tháng năm nào?|Điều 220. Hiệu lực thi hành  - 1. Bộ luật này có hiệu lực thi hành từ ngày 01 tháng 01 năm 2021. - Bộ luật Lao động số 10/2012/QH13 hết hiệu lực ... |0.3589|Yes| 01 tháng 01 năm 2021|
+| 2 |Theo Bộ luật Lao động 2019, hợp đồng lao động được phân loại thành mấy loại chính? Đó là những loại nào?|Điều 20. Loại hợp đồng lao động  - 1. Họp đồng lao động phải được giao kết theo một trong các loại sau đây: - a) Hợp đồng lao động không xác định ...|0.1705|Yes|Hợp đồng lao động được phân loại thành hai loại chính: hợp đồng lao động không xác định thời hạn và hợp đồng lao động xác định thời hạn. (Điều 20)...|
+| 3 |Quy định pháp luật không cho phép áp dụng thời gian thử việc đối với trường hợp người lao động giao kết loại hợp đồng lao động nào?|Không áp dụng thử việc đối với người lao động giao kết hợp đồng lao động có thời hạn dưới 01 tháng.|0.4572|Yes|Hợp đồng lao động có thời hạn dưới 01 tháng....|
+| 4 |Theo quy định, thời gian thử việc tối đa đối với công việc của người quản lý doanh nghiệp (theo quy định của Luật Doanh nghiệp, Luật Quản lý, sử dụng vốn nhà nước đầu tư vào sản xuất, kinh doanh tại doanh nghiệp) là bao nhiêu ngày?|Không quá 180 ngày đối với công việc của người quản lý doanh nghiệp theo quy định của Luật Doanh nghiệp, Luật Quản lý, sử dụng vốn nhà nước đầu t...|0.3821|No|0.382|
+| 5 |Trong dịp lễ Quốc khánh 02/9, người lao động được nghỉ làm việc và hưởng nguyên lương tổng cộng bao nhiêu ngày?|#### Điều 112. Nghỉ lễ, tết  - 1. Người lao động được nghi làm việc, hưởng nguyên lương trong những ngày lễ, tết sau đây:   - a) Tết Dương lịch: 01 ng...|0.2772|No|  Thông tin không có trong tài liệu....|
+| 6 |Lộ trình điều chỉnh tuổi nghỉ hưu đối với người lao động làm việc trong điều kiện lao động bình thường được thực hiện cho đến khi đạt mức độ tuổi nào đối với nam và nữ?| 2. Tuổi nghi hưu của người lao động trong điều kiện lao động bình thường được điều chỉnh theo lộ trình cho đến khi đủ 62 tuổi đối với lao động nam v...|0.5008|Yes|62 tuổi đối với lao động nam vào năm 2028, và 60 tuổi đối với lao động nữ vào năm 2035...| 
 
-**Bao nhiêu queries trả về chunk relevant trong top-3?** __ / 5
+**Bao nhiêu queries trả về chunk relevant trong top-3?** 4 / 6
 
 ---
 
