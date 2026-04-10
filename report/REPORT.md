@@ -75,9 +75,9 @@ Chạy `ChunkingStrategyComparator().compare()` trên 2-3 tài liệu:
 
 | Tài liệu | Strategy | Chunk Count | Avg Length | Preserves Context? |
 |-----------|----------|-------------|------------|-------------------|
-| | FixedSizeChunker (`fixed_size`) | | | |
-| | SentenceChunker (`by_sentences`) | | | |
-| | RecursiveChunker (`recursive`) | | | |
+| Luật lao động Việt Nam | FixedSizeChunker (`fixed_size`) | 1074 | 199.87 | Không |
+| Luật lao động Việt Nam | SentenceChunker (`by_sentences`) | 554 | 346.92 | Có |
+| Luật lao động Việt Nam | RecursiveChunker (`recursive`) | 1652 | 115.27 | Có |
 
 ### Strategy Của Tôi
 
@@ -148,7 +148,7 @@ class AgenticChunker:
 
 
 **Strategy nào tốt nhất cho domain này? Tại sao?**
-> *FixedSizeChunk vì xử lý đơn giản và còn kiểm soát được lượng token đưa vào LLM. Hơn nữa còn đạt được 10/10 retrieval score
+> *FixedSizeChunk vì xử lý đơn giản và còn kiểm soát được lượng token đưa vào LLM. Hơn nữa còn đạt được 10/10 retrieval score*
 
 ---
 
@@ -158,32 +158,80 @@ Giải thích cách tiếp cận của bạn khi implement các phần chính tr
 
 ### Chunking Functions
 
-**`SentenceChunker.chunk`** — approach:
-> *Viết 2-3 câu: dùng regex gì để detect sentence? Xử lý edge case nào?*
-
-**`RecursiveChunker.chunk` / `_split`** — approach:
-> *Viết 2-3 câu: algorithm hoạt động thế nào? Base case là gì?*
+**`AgenticChunker.chunk`** — approach:
+> *Sử dụng LLM để xác định các ranh giới ngữ nghĩa bằng cách chèn ký tự phân tách đặc biệt ||| vào văn bản nguồn thay vì cắt theo độ dài cố định. Quy trình này giúp phân đoạn tài liệu dựa trên sự chuyển đổi logic của nội dung, đảm bảo tính toàn vẹn của các Điều khoản pháp luật.*
 
 ### EmbeddingStore
 
 **`add_documents` + `search`** — approach:
-> *Viết 2-3 câu: lưu trữ thế nào? Tính similarity ra sao?*
+> *Sử dụng LLM để xác định ranh giới ngữ nghĩa bằng cách chèn ký tự phân tách đặc biệt ||| vào văn bản tại những vị trí chuyển giao logic. Văn bản thô được xử lý sơ bộ qua RecursiveChunker để tránh vượt quá giới hạn token đầu vào của mô hình ngôn ngữ*
 
 **`search_with_filter` + `delete_document`** — approach:
-> *Viết 2-3 câu: filter trước hay sau? Delete bằng cách nào?*
+> *Lưu trữ danh sách các đối tượng Document kèm theo vector nhúng được tạo từ OpenAIEmbedder (model text-embedding-3-small).Tính toán độ tương đồng bằng hàm compute_similarity dựa trên công thức Cosine Similarity.*
 
 ### KnowledgeBaseAgent
 
 **`answer`** — approach:
-> *Viết 2-3 câu: prompt structure? Cách inject context?*
+> *Xây dựng hệ thống Prompt nghiêm ngặt, ép mô hình trả lời trực tiếp, học thuật, không sử dụng câu dẫn và phải trích dẫn số Điều cụ thể từ ngữ cảnh. Chống ảo giác được thiết lập bằng cách yêu cầu Agent chỉ trả lời "Thông tin không có trong tài liệu" nếu ngữ cảnh không đủ dữ liệu*
 
 ### Test Results
 
 ```
-# Paste output of: pytest tests/ -v
+(venv) PS C:\Users\2tmy\Desktop\AI_Thuc_Chien\Day7\2A202600482-NguyenPhamTraMy-D07> pytest tests/ -v   
+====================================================================================== test session starts ======================================================================================
+platform win32 -- Python 3.14.3, pytest-9.0.2, pluggy-1.6.0 -- C:\Users\2tmy\AppData\Local\Programs\Python\Python314\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\2tmy\Desktop\AI_Thuc_Chien\Day7\2A202600482-NguyenPhamTraMy-D07
+plugins: anyio-4.13.0, langsmith-0.7.26
+collected 42 items                                                                                                                                                                               
+
+tests/test_solution.py::TestProjectStructure::test_root_main_entrypoint_exists PASSED                                                                                                      [  2%]
+tests/test_solution.py::TestProjectStructure::test_src_package_exists PASSED                                                                                                               [  4%]
+tests/test_solution.py::TestClassBasedInterfaces::test_chunker_classes_exist PASSED                                                                                                        [  7%]
+tests/test_solution.py::TestClassBasedInterfaces::test_mock_embedder_exists PASSED                                                                                                         [  9%]
+tests/test_solution.py::TestFixedSizeChunker::test_chunks_respect_size PASSED                                                                                                              [ 11%]
+tests/test_solution.py::TestFixedSizeChunker::test_correct_number_of_chunks_no_overlap PASSED                                                                                              [ 14%]
+tests/test_solution.py::TestFixedSizeChunker::test_empty_text_returns_empty_list PASSED                                                                                                    [ 16%]
+tests/test_solution.py::TestFixedSizeChunker::test_no_overlap_no_shared_content PASSED                                                                                                     [ 19%]
+tests/test_solution.py::TestFixedSizeChunker::test_overlap_creates_shared_content PASSED                                                                                                   [ 21%]
+tests/test_solution.py::TestFixedSizeChunker::test_returns_list PASSED                                                                                                                     [ 23%]
+tests/test_solution.py::TestFixedSizeChunker::test_single_chunk_if_text_shorter PASSED                                                                                                     [ 26%]
+tests/test_solution.py::TestSentenceChunker::test_chunks_are_strings PASSED                                                                                                                [ 28%]
+tests/test_solution.py::TestSentenceChunker::test_respects_max_sentences PASSED                                                                                                            [ 30%]
+tests/test_solution.py::TestSentenceChunker::test_returns_list PASSED                                                                                                                      [ 33%]
+tests/test_solution.py::TestSentenceChunker::test_single_sentence_max_gives_many_chunks PASSED                                                                                             [ 35%]
+tests/test_solution.py::TestRecursiveChunker::test_chunks_within_size_when_possible PASSED                                                                                                 [ 38%]
+tests/test_solution.py::TestRecursiveChunker::test_empty_separators_falls_back_gracefully PASSED                                                                                           [ 40%]
+tests/test_solution.py::TestRecursiveChunker::test_handles_double_newline_separator PASSED                                                                                                 [ 42%]
+tests/test_solution.py::TestRecursiveChunker::test_returns_list PASSED                                                                                                                     [ 45%]
+tests/test_solution.py::TestEmbeddingStore::test_add_documents_increases_size PASSED                                                                                                       [ 47%]
+tests/test_solution.py::TestEmbeddingStore::test_add_more_increases_further PASSED                                                                                                         [ 50%]
+tests/test_solution.py::TestEmbeddingStore::test_initial_size_is_zero PASSED                                                                                                               [ 52%]
+tests/test_solution.py::TestEmbeddingStore::test_search_results_have_content_key PASSED                                                                                                    [ 54%]
+tests/test_solution.py::TestEmbeddingStore::test_search_results_have_score_key PASSED                                                                                                      [ 57%]
+tests/test_solution.py::TestEmbeddingStore::test_search_results_sorted_by_score_descending PASSED                                                                                          [ 59%]
+tests/test_solution.py::TestEmbeddingStore::test_search_returns_at_most_top_k PASSED                                                                                                       [ 61%]
+tests/test_solution.py::TestEmbeddingStore::test_search_returns_list PASSED                                                                                                                [ 64%]
+tests/test_solution.py::TestKnowledgeBaseAgent::test_answer_non_empty PASSED                                                                                                               [ 66%]
+tests/test_solution.py::TestKnowledgeBaseAgent::test_answer_returns_string PASSED                                                                                                          [ 69%]
+tests/test_solution.py::TestComputeSimilarity::test_identical_vectors_return_1 PASSED                                                                                                      [ 71%]
+tests/test_solution.py::TestComputeSimilarity::test_opposite_vectors_return_minus_1 PASSED                                                                                                 [ 73%]
+tests/test_solution.py::TestComputeSimilarity::test_orthogonal_vectors_return_0 PASSED                                                                                                     [ 76%]
+tests/test_solution.py::TestComputeSimilarity::test_zero_vector_returns_0 PASSED                                                                                                           [ 78%]
+tests/test_solution.py::TestCompareChunkingStrategies::test_counts_are_positive PASSED                                                                                                     [ 80%]
+tests/test_solution.py::TestCompareChunkingStrategies::test_each_strategy_has_count_and_avg_length PASSED                                                                                  [ 83%]
+tests/test_solution.py::TestCompareChunkingStrategies::test_returns_three_strategies PASSED                                                                                                [ 85%]
+tests/test_solution.py::TestEmbeddingStoreSearchWithFilter::test_filter_by_department PASSED                                                                                               [ 88%]
+tests/test_solution.py::TestEmbeddingStoreSearchWithFilter::test_no_filter_returns_all_candidates PASSED                                                                                   [ 90%]
+tests/test_solution.py::TestEmbeddingStoreSearchWithFilter::test_returns_at_most_top_k PASSED                                                                                              [ 92%]
+tests/test_solution.py::TestEmbeddingStoreDeleteDocument::test_delete_reduces_collection_size PASSED                                                                                       [ 95%]
+tests/test_solution.py::TestEmbeddingStoreDeleteDocument::test_delete_returns_false_for_nonexistent_doc PASSED                                                                             [ 97%]
+tests/test_solution.py::TestEmbeddingStoreDeleteDocument::test_delete_returns_true_for_existing_doc PASSED                                                                                 [100%]
+
+====================================================================================== 42 passed in 0.20s =======================================================================================
 ```
 
-**Số tests pass:** __ / __
+**Số tests pass:** 42 / 42
 
 ---
 
@@ -191,14 +239,14 @@ Giải thích cách tiếp cận của bạn khi implement các phần chính tr
 
 | Pair | Sentence A | Sentence B | Dự đoán | Actual Score | Đúng? |
 |------|-----------|-----------|---------|--------------|-------|
-| 1 | | | high / low | | |
-| 2 | | | high / low | | |
-| 3 | | | high / low | | |
-| 4 | | | high / low | | |
-| 5 | | | high / low | | |
+| 1 |xe ô tô điện hiện đại phong cách|xe Vinfast| High | 0.3872 | Yes |
+| 2 |Người lao động có quyền đơn phương chấm dứt HĐLĐ.|Nhân viên có thể chủ động xin nghỉ việc.| High | 0.4659 | Yes |
+| 3 |Hợp đồng lao động phải được lập thành văn bản.|Thành phố Hà Nội là thủ đô của Việt Nam.| Low | 0.2230 | Yes |
+| 4 |Thử việc không quá 180 ngày.|Thời gian thử việc tối đa của người quản lý là 6 tháng.| High | 0.5271 | Yes |
+| 5 |Lương tháng 13 là bắt buộc.|Thưởng tết không phải là khoản chi cứng.| Low | 0.3556 | No |
 
 **Kết quả nào bất ngờ nhất? Điều này nói gì về cách embeddings biểu diễn nghĩa?**
-> *Viết 2-3 câu:*
+> *Kết quả số 5 khiến tôi bất ngờ nhất vì mô hình đã có thể liên kết giữa Lương tháng 13 với Thưởng tết*
 
 ---
 
@@ -225,7 +273,7 @@ Chạy 5 benchmark queries của nhóm trên implementation cá nhân của bạ
 | 1 |Bộ luật Lao động năm 2019 (Luật số 45/2019/QH14) chính thức có hiệu lực thi hành kể từ ngày tháng năm nào?|Điều 220. Hiệu lực thi hành  - 1. Bộ luật này có hiệu lực thi hành từ ngày 01 tháng 01 năm 2021. - Bộ luật Lao động số 10/2012/QH13 hết hiệu lực ... |0.3589|Yes| 01 tháng 01 năm 2021|
 | 2 |Theo Bộ luật Lao động 2019, hợp đồng lao động được phân loại thành mấy loại chính? Đó là những loại nào?|Điều 20. Loại hợp đồng lao động  - 1. Họp đồng lao động phải được giao kết theo một trong các loại sau đây: - a) Hợp đồng lao động không xác định ...|0.1705|Yes|Hợp đồng lao động được phân loại thành hai loại chính: hợp đồng lao động không xác định thời hạn và hợp đồng lao động xác định thời hạn. (Điều 20)...|
 | 3 |Quy định pháp luật không cho phép áp dụng thời gian thử việc đối với trường hợp người lao động giao kết loại hợp đồng lao động nào?|Không áp dụng thử việc đối với người lao động giao kết hợp đồng lao động có thời hạn dưới 01 tháng.|0.4572|Yes|Hợp đồng lao động có thời hạn dưới 01 tháng....|
-| 4 |Theo quy định, thời gian thử việc tối đa đối với công việc của người quản lý doanh nghiệp (theo quy định của Luật Doanh nghiệp, Luật Quản lý, sử dụng vốn nhà nước đầu tư vào sản xuất, kinh doanh tại doanh nghiệp) là bao nhiêu ngày?|Không quá 180 ngày đối với công việc của người quản lý doanh nghiệp theo quy định của Luật Doanh nghiệp, Luật Quản lý, sử dụng vốn nhà nước đầu t...|0.3821|No|0.382|
+| 4 |Theo quy định, thời gian thử việc tối đa đối với công việc của người quản lý doanh nghiệp (theo quy định của Luật Doanh nghiệp, Luật Quản lý, sử dụng vốn nhà nước đầu tư vào sản xuất, kinh doanh tại doanh nghiệp) là bao nhiêu ngày?|Không quá 180 ngày đối với công việc của người quản lý doanh nghiệp theo quy định của Luật Doanh nghiệp, Luật Quản lý, sử dụng vốn nhà nước đầu t...|0.3821|No|  Thông tin không có trong tài liệu....|
 | 5 |Trong dịp lễ Quốc khánh 02/9, người lao động được nghỉ làm việc và hưởng nguyên lương tổng cộng bao nhiêu ngày?|#### Điều 112. Nghỉ lễ, tết  - 1. Người lao động được nghi làm việc, hưởng nguyên lương trong những ngày lễ, tết sau đây:   - a) Tết Dương lịch: 01 ng...|0.2772|No|  Thông tin không có trong tài liệu....|
 | 6 |Lộ trình điều chỉnh tuổi nghỉ hưu đối với người lao động làm việc trong điều kiện lao động bình thường được thực hiện cho đến khi đạt mức độ tuổi nào đối với nam và nữ?| 2. Tuổi nghi hưu của người lao động trong điều kiện lao động bình thường được điều chỉnh theo lộ trình cho đến khi đủ 62 tuổi đối với lao động nam v...|0.5008|Yes|62 tuổi đối với lao động nam vào năm 2028, và 60 tuổi đối với lao động nữ vào năm 2035...| 
 
@@ -236,13 +284,13 @@ Chạy 5 benchmark queries của nhóm trên implementation cá nhân của bạ
 ## 7. What I Learned (5 điểm — Demo)
 
 **Điều hay nhất tôi học được từ thành viên khác trong nhóm:**
-> *Viết 2-3 câu:*
+> *Tôi học được cách tối ưu hóa Prompt kỹ thuật để ép mô hình ngôn ngữ phản hồi ngắn gọn và chính xác. kiểm soát output của Agent giúp giảm thiểu hiện tượng ảo giá khi đối mặt với các văn bản pháp luật có cấu trúc phức tạp.*
 
 **Điều hay nhất tôi học được từ nhóm khác (qua demo):**
-> *Viết 2-3 câu:*
+> *Tôi nhận ra rằng hiệu quả của một hệ thống RAG phụ thuộc chặt chẽ vào việc "tùy biến" phương pháp xử lý theo cấu trúc đặc thù của tài liệu.*
 
 **Nếu làm lại, tôi sẽ thay đổi gì trong data strategy?**
-> *Viết 2-3 câu:*
+> *Tôi sẽ điều chỉnh tăng kích thước max_chunk_size và tinh chỉnh Prompt của AgenticChunker để gộp các khoản mục liên quan chặt chẽ vào cùng một khối nội dung lớn hơn thay vì chia nhỏ thành 707*
 
 ---
 
@@ -250,12 +298,12 @@ Chạy 5 benchmark queries của nhóm trên implementation cá nhân của bạ
 
 | Tiêu chí | Loại | Điểm tự đánh giá |
 |----------|------|-------------------|
-| Warm-up | Cá nhân | / 5 |
-| Document selection | Nhóm | / 10 |
-| Chunking strategy | Nhóm | / 15 |
-| My approach | Cá nhân | / 10 |
-| Similarity predictions | Cá nhân | / 5 |
-| Results | Cá nhân | / 10 |
-| Core implementation (tests) | Cá nhân | / 30 |
-| Demo | Nhóm | / 5 |
-| **Tổng** | | **/ 100** |
+| Warm-up | Cá nhân | 5 / 5 |
+| Document selection | Nhóm | 10/ 10 |
+| Chunking strategy | Nhóm | 15/ 15 |
+| My approach | Cá nhân | 10/ 10 |
+| Similarity predictions | Cá nhân | 5/ 5 |
+| Results | Cá nhân | 8/ 10 |
+| Core implementation (tests) | Cá nhân | 30/ 30 |
+| Demo | Nhóm | 5/ 5 |
+| **Tổng** | | 98/ 100** |
