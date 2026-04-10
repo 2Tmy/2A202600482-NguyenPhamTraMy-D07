@@ -1,22 +1,28 @@
+from __future__ import annotations
 from typing import Callable
-
 from .store import EmbeddingStore
 
-
 class KnowledgeBaseAgent:
-    """
-    An agent that answers questions using a vector knowledge base.
+    def __init__(self, store, llm_fn):
+        self.store = store
+        self.llm_fn = llm_fn
 
-    Retrieval-augmented generation (RAG) pattern:
-        1. Retrieve top-k relevant chunks from the store.
-        2. Build a prompt with the chunks as context.
-        3. Call the LLM to generate an answer.
-    """
+    def answer(self, query: str, top_k: int = 5) -> str:
+        results = self.store.search(query, top_k=top_k)
+        context = "\n".join([r['content'] for r in results])
+        prompt = f"""
+Nhiệm vụ: Trả lời câu hỏi dựa trên ngữ cảnh pháp luật được cung cấp.
+Yêu cầu:
+1. Trả lời trực tiếp, không sử dụng câu dẫn (ví dụ: "Dựa trên ngữ cảnh...", "Theo quy định...").
+2. Ngôn ngữ chính xác, học thuật, không biểu thị cảm xúc.
+3. Nếu ngữ cảnh có thông tin, hãy trích dẫn số Điều cụ thể.
+4. Nếu ngữ cảnh không đủ thông tin, chỉ trả lời: "Thông tin không có trong tài liệu."
 
-    def __init__(self, store: EmbeddingStore, llm_fn: Callable[[str], str]) -> None:
-        # TODO: store references to store and llm_fn
-        pass
+Ngữ cảnh:
+{context}
 
-    def answer(self, question: str, top_k: int = 3) -> str:
-        # TODO: retrieve chunks, build prompt, call llm_fn
-        raise NotImplementedError("Implement KnowledgeBaseAgent.answer")
+Câu hỏi: {query}
+Trả lời:"""
+
+        response = self.llm_fn(prompt)
+        return response.strip()
