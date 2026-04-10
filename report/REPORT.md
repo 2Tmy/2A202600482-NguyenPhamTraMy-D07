@@ -11,29 +11,29 @@
 ### Cosine Similarity (Ex 1.1)
 
 **High cosine similarity nghĩa là gì?**
-> *Viết 1-2 câu:*
+> *High cosine similarity cho biết hai vector có hướng gần như trùng nhau trong không gian vector đa chiều, thể hiện sự tương đồng cao về ngữ nghĩa giữa hai đoạn văn bản.*
 
 **Ví dụ HIGH similarity:**
-- Sentence A:
-- Sentence B:
-- Tại sao tương đồng:
+- Sentence A: Xe ô tô điện hiện đại, phong cách
+- Sentence B: Xe Vinfast
+- Tại sao tương đồng: Dù câu A sử dụng các tính từ chung chung và câu B sử dụng một danh từ riêng, nhưng cơ chế nhúng dựa trên ngữ cảnh (như Transformer-based embeddings) có khả năng hiểu được mối liên hệ thực tế giữa thực thể (VinFast) và đặc tính (ô tô điện, phong cách). 
 
 **Ví dụ LOW similarity:**
-- Sentence A:
-- Sentence B:
-- Tại sao khác:
+- Sentence A: Xe ô tô điện hiện đại, phong cách
+- Sentence B: Thủ đô Hà Nội thật đẹp
+- Tại sao khác: Hai câu thuộc hai phạm trù nội dung hoàn toàn khác biệt, không có sự liên quan về ngữ cảnh hay ý nghĩa thực tế.
 
 **Tại sao cosine similarity được ưu tiên hơn Euclidean distance cho text embeddings?**
-> *Viết 1-2 câu:*
+> *Cosine similarity tập trung vào hướng (góc giữa hai vector) để đo lường ngữ nghĩa, trong khi Euclidean distance bị ảnh hưởng bởi độ dài (magnitude) của vector; điều này giúp tránh sai số khi so sánh các đoạn văn bản có độ dài khác nhau nhưng nội dung tương đồng.*
 
 ### Chunking Math (Ex 1.2)
 
 **Document 10,000 ký tự, chunk_size=500, overlap=50. Bao nhiêu chunks?**
-> *Trình bày phép tính:*
-> *Đáp án:*
+> *[(10,000 - 500) / (500 - 50)] = 22.11 chunks*
+> *Đáp án: 23 chunks*
 
 **Nếu overlap tăng lên 100, chunk count thay đổi thế nào? Tại sao muốn overlap nhiều hơn?**
-> *Viết 1-2 câu:*
+> *Overlap nhiều hơn giúp duy trì ngữ cảnh liên tục giữa các điểm cắt, đảm bảo thông tin quan trọng nằm ở cuối chunk này không bị mất ý nghĩa khi xuất hiện ở đầu chunk kế tiếp, từ đó cải thiện độ chính xác khi truy vấn (retrieval).*
 
 ---
 
@@ -81,13 +81,13 @@ Chạy `ChunkingStrategyComparator().compare()` trên 2-3 tài liệu:
 
 ### Strategy Của Tôi
 
-**Loại:** [FixedSizeChunker / SentenceChunker / RecursiveChunker / custom strategy]
+**Loại:** [custom strategy (Agent Chunker)]
 
 **Mô tả cách hoạt động:**
-> *Viết 3-4 câu: strategy chunk thế nào? Dựa trên dấu hiệu gì?*
+> *Sử dụng LLM để phân tích ngữ nghĩa và xác định semantic boundaries trong văn bản thay vì dựa vào các dấu hiệu như độ dài ký tự hay dấu câu. Cụ thể, LLM sẽ nhận nhiệm vụ chèn ký tự phân tách ||| vào các vị trí mà nội dung chuyển giao sang một nội dung hoặc chủ đề mới. Sau khi LLM phân đoạn, nếu đoạn nào vượt quá kích thước max_chunk_size,hệ thống sẽ áp dụng FixedSizeChunker để đảm bảo tính ổn định cho bộ nhớ đệm của vector store.*
 
 **Tại sao tôi chọn strategy này cho domain nhóm?**
-> *Viết 2-3 câu: domain có pattern gì mà strategy khai thác?*
+> *Đối với domain là văn bản pháp luật (Bộ luật Lao động), các quy định thường có cấu trúc phức tạp với nhiều điều, khoản có độ dài ngắn rất khác nhau. Việc sử dụng AgenticChunker giúp đảm bảo toàn vẹn của một quy định, tránh việc một điều luật bị cắt nhỏ từ đó nâng cao độ chính xác khi Agent thực hiện trả lời câu hỏi dựa trên căn cứ luật.*
 
 **Code snippet (nếu custom):**
 ```python
@@ -96,18 +96,26 @@ Chạy `ChunkingStrategyComparator().compare()` trên 2-3 tài liệu:
 
 ### So Sánh: Strategy của tôi vs Baseline
 
-| Tài liệu | Strategy | Chunk Count | Avg Length | Retrieval Quality? |
-|-----------|----------|-------------|------------|--------------------|
-| | best baseline | | | |
-| | **của tôi** | | | |
+| Tài liệu | Strategy | Chunk Count | Avg Length | Preserves Context? |
+|-----------|----------|-------------|------------|-------------------|
+| Luật lao động Việt Nam | FixedSizeChunker (`fixed_size`) | 1074 | 199.87 | Không |
+| Luật lao động Việt Nam | SentenceChunker (`by_sentences`) | 554 | 346.92 | Có |
+| Luật lao động Việt Nam | RecursiveChunker (`recursive`) | 1652 | 115.27 | Có 
 
 ### So Sánh Với Thành Viên Khác
 
+
 | Thành viên | Strategy | Retrieval Score (/10) | Điểm mạnh | Điểm yếu |
 |-----------|----------|----------------------|-----------|----------|
-| Tôi | | | | |
-| [Tên] | | | | |
-| [Tên] | | | | |
+| Duy Anh | Custom Strategy (Regex Based Chunking) | 8.5 | Bảo toàn ngữ cảnh tốt | Khi điều luật quá dài, đoạn chunk sinh ra sẽ vượt qua giới hạn context window. Hao phí khi embedding. Sự thừa thãi khi truy xuất.  |
+
+
+| Lại Gia Khánh | Semantic Chunking | 8 | Giữ nguyên đơn vị nghĩa (câu/điều), cải thiện độ chính xác truy vấn và khả năng trích dẫn nguồn; giảm nhiễu khi trả lời câu hỏi chuyên sâu. | Phụ thuộc vào chất lượng embedding và ngưỡng similarity; cần tinh chỉnh threshold; tốn tài nguyên hơn và có thể tạo chunk kích thước không đồng đều. |
+| Mạc Phương Nga | FixedSizeChunker | 10 | Xử lý đơn giản, nhanh. Kiểm soát được lượng token đưa vào LLM | Phụ thuộc nhiều vào chunk_size và overlap, cần kiểm thử nhiều lần để tìm cặp thông số tối ưu. |
+| Nguyễn Phạm Trà My | AgenticChunker |10| Bảo tồn trọn vẹn bối cảnh và tính logic của văn bản bằng cách phân đoạn dựa trên ranh giới ngữ nghĩa thay vì cắt theo độ dài vật lý cố định. | Chi phí cao và tốc độ xử lý chậm do phụ thuộc hoàn toàn vào việc gọi API từ LLM cho từng đoạn văn bản.|
+| Trương Minh Sơn |Parent–Child |7.8/10|Trả lời câu hỏi, tìm chunks khá chính xác, Retrieval tìm đúng chunk quan trọng (Top-1 thường chứa đáp án).| Test thêm queries, có queries bị lan man không đúng trọng tâm dù tìm đúng đoạn chunk đoạn thông tin cần trả lời, có case bị lost-track information.’Top-K còn nhiều chunk không liên quan → context bị nhiễu |
+| Bùi Trần Gia Bảo| DocumentStructureChunker | 6/10| Giữ nguyên cấu trúc tài liệu (heading, section), rất phù hợp với văn bản markdown pháp lý, giúp truy xuất theo ngữ cảnh rõ ràng. | Phụ thuộc vào chất lượng định dạng markdown; nếu cấu trúc không chuẩn hoặc quá dài, chunk có thể mất cân bằng và ảnh hưởng hiệu quả retrieval. |
+
 
 **Strategy nào tốt nhất cho domain này? Tại sao?**
 > *Viết 2-3 câu:*
