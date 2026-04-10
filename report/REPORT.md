@@ -1,8 +1,8 @@
 # Báo Cáo Lab 7: Embedding & Vector Store
 
-**Họ tên:** [Tên sinh viên]
-**Nhóm:** [Tên nhóm]
-**Ngày:** [Ngày nộp]
+**Họ tên:** Nguyễn Phạm Trà My
+**Nhóm:** C401_F1
+**Ngày:** 10/4/2026
 
 ---
 
@@ -41,27 +41,29 @@
 
 ### Domain & Lý Do Chọn
 
-**Domain:** [ví dụ: Customer support FAQ, Vietnamese law, cooking recipes, ...]
+**Domain:** Luật Lao động Việt Nam 2019
 
 **Tại sao nhóm chọn domain này?**
-> *Viết 2-3 câu:*
+> Chọn Luật Lao động Việt Nam 2019 vì đây là một lĩnh vực có nhiều tài liệu pháp lý phức tạp, đòi hỏi sự hiểu biết sâu sắc về ngôn ngữ và cấu trúc văn bản. Domain này cũng có nhiều quy định và điều khoản liên quan đến quyền lợi của người lao động, làm cho việc retrieval thông tin chính xác trở nên rất quan trọng.
 
 ### Data Inventory
 
 | # | Tên tài liệu | Nguồn | Số ký tự | Metadata đã gán |
 |---|--------------|-------|----------|-----------------|
-| 1 | | | | |
-| 2 | | | | |
-| 3 | | | | |
-| 4 | | | | |
-| 5 | | | | |
+| 1 | Bộ luật Lao Động Việt Nam 2019| https://datafiles.chinhphu.vn/cpp/files/vbpq/2019/12/45.signed.pdf | 193202 |  |
+
 
 ### Metadata Schema
 
 | Trường metadata | Kiểu | Ví dụ giá trị | Tại sao hữu ích cho retrieval? |
 |----------------|------|---------------|-------------------------------|
-| | | | |
-| | | | |
+| doc_title | string | "Bộ luật Lao động 2019" | Giúp hệ thống lọc (filter) ngay lập tức nếu người dùng chỉ định rõ "Theo bộ luật lao động 2019...". Tránh nhầm lẫn với bộ luật khác/cũ (2012).|
+| doc_id | string | "45/2019/QH14" | Nhiều người dùng (đặc biệt là dân luật/nhân sự) thường tra cứu bằng số hiệu văn bản. Đây là keyword định danh chính xác tuyệt đối. |
+| effective_date | date | "01/01/2021" | Giúp hệ thống đánh giá tính thời sự của văn bản hoặc dùng để trả lời các câu hỏi về thời điểm áp dụng luật. |
+| Chapter | integer | 1, 2, 3, ... | Giúp gom nhóm ngữ cảnh. Ví dụ: Các chunk thuộc Chương III sẽ có độ ưu tiên cao khi câu hỏi liên quan đến "Hợp đồng lao động".|
+| article_number | integer | 10, 20 | Cực kỳ quan trọng. Người dùng thường hỏi trực tiếp "Điều 20 quy định gì?". Metadata này cho phép trích xuất chính xác (exact match) chunk chứa điều luật đó. |
+| article_title | string | "Loại hợp đồng lao động" | Bổ sung semantic context. Tên điều thường chứa từ khóa tóm tắt toàn bộ nội dung của điều luật đó.|
+| source_url | string |  "https://datafiles.chinhphu.vn/cpp/files/vbpq/2019/12/45.signed.pdf" | Không trực tiếp giúp tìm kiếm, nhưng là metadata bắt buộc để Generator (LLM) đính kèm link trích dẫn (citation) vào câu trả lời cuối cùng, tăng độ tin cậy. |
 
 ---
 
