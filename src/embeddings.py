@@ -43,7 +43,7 @@ class OpenAIEmbedder:
         self.model_name = model_name
         self._backend_name = model_name
         
-        selected_key = api_key or os.getenv("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")
+        selected_key = api_key or os.getenv("API_KEY")
         if not selected_key:
             raise ValueError("OpenAIEmbedder: OPENAI_API_KEY không tồn tại.")
 
